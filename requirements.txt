@@ -1,6 +1,9 @@
 langchain
+langchain-community
+langchain-core
 langchain-openai
 chromadb
 renumics-spotlight
 numpy
 pandas
+db-sqlite3

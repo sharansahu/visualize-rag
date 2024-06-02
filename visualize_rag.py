@@ -6,9 +6,10 @@ import json
 import numpy as np
 import pandas as pd
 from typing import List
-from langchain.chat_models import ChatOpenAI, ChatOllama
-from langchain.embeddings import OpenAIEmbeddings, OllamaEmbeddings
-from langchain.vectorstores.chroma import Chroma
+from langchain_community.chat_models import ChatOpenAI, ChatOllama
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.embeddings import OllamaEmbeddings
+from langchain_community.vectorstores import Chroma
 from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
