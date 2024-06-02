@@ -16,6 +16,7 @@ This project allows you to load documents from a specified directory, create emb
 
 - Python 3.8 or higher
 - Pip (Python package installer)
+- Windows 10 or later / macOS 11 Big Sur or later
 
 ### Dependencies
 
@@ -39,13 +40,7 @@ pip install -r requirements.txt
 To run the script, use the following command:
 
 ```sh
-python script_name.py --docs_dir path/to/docs --vectorstore_dir path/to/vectorstore --embeddings_model openai:text-embedding-ada-002 --llm_model openai:gpt-4
-```
-
-### Example
-
-```sh
-python qa_visualize.py --docs_dir ./documents --vectorstore_dir ./vectorstore --embeddings_model openai:text-embedding-ada-002 --llm_model openai:gpt-4
+python visualize_rag.py --docs_dir ./documents --vectorstore_dir ./vectorstore --embeddings_model openai:text-embedding-ada-002 --llm_model openai:gpt-4
 ```
 
 ### Interactive Question-Answer Session
@@ -69,4 +64,3 @@ If you choose to use Ollama models and Ollama is not installed on your system, t
 ## License
 
 This project is licensed under the MIT License. See the LICENSE file for details.
-
