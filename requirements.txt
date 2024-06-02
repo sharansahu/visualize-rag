@@ -1,0 +1,6 @@
+langchain
+langchain-openai
+chromadb
+renumics-spotlight
+numpy
+pandas
