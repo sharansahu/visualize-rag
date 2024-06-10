@@ -2,8 +2,9 @@ langchain
 langchain-community
 langchain-core
 langchain-openai
-chromadb
+chromadb==0.3.29
 renumics-spotlight
 numpy
 pandas
+pypdf
 db-sqlite3

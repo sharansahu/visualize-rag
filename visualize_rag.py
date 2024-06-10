@@ -90,7 +90,6 @@ def main(args):
         args.docs_dir,
         glob="*.pdf",
         loader_cls=PyPDFLoader,
-        loader_kwargs={"open_encoding": "utf-8"},
         recursive=True,
         show_progress=True,
     )
@@ -152,10 +151,10 @@ def main(args):
         question = input("Enter your question (or 'done' to finish): ")
         if question.lower() == 'done':
             break
-        answer = rag_chain.invoke({"question": question})
-        print("Answer:", answer)
+        response = rag_chain.invoke(question)['answer']
+        print("Answer:", response)
         questions.append(question)
-        answers.append(answer)
+        answers.append(response)
 
     # Visualize results
     response = docs_vectorstore.get(include=["metadatas", "documents", "embeddings"])
@@ -170,22 +169,32 @@ def main(args):
     )
 
     for i, question in enumerate(questions):
+        question_embedding = embeddings_model.embed_query(question)
         question_row = pd.DataFrame(
             {
                 "id": [f"question_{i}"],
                 "question": [question],
-                "embedding": [embeddings_model.embed_query(question)],
+                "embedding": [question_embedding],
             }
         )
+        answer_embedding = embeddings_model.embed_query(answers[i])
         answer_row = pd.DataFrame(
             {
                 "id": [f"answer_{i}"],
                 "answer": [answers[i]],
-                "embedding": [embeddings_model.embed_query(answers[i])],
+                "embedding": [answer_embedding],
             }
         )
         df = pd.concat([question_row, answer_row, df], ignore_index=True)
 
+        # Calculate distances
+        df["dist"] = df.apply(
+            lambda row: np.linalg.norm(
+                np.array(row["embedding"]) - question_embedding
+            ),
+            axis=1,
+        )
+        
     spotlight.show(df)
 
 if __name__ == "__main__":
