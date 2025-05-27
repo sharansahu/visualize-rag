@@ -102,9 +102,24 @@ def main(args):
     splits = text_splitter.split_documents(docs)
 
     # Add documents to vector store
-    split_ids = list(map(stable_hash, splits))
-    docs_vectorstore.add_documents(splits, ids=split_ids)
-    docs_vectorstore.persist()
+    split_ids = [stable_hash(doc) for doc in splits]
+    try:
+        existing_ids = set(docs_vectorstore.get(include=["ids"])["ids"])
+    except Exception:
+        existing_ids = set()
+    
+    new_splits, new_ids = [], []
+    for doc, _id in zip(splits, split_ids):
+        if _id not in existing_ids:
+            new_splits.append(doc)
+            new_ids.append(_id)
+    
+    if new_splits:
+        docs_vectorstore.add_documents(new_splits, ids=new_ids)
+        docs_vectorstore.persist()
+        print(f"Added {len(new_splits)} new chunks to Chroma.")
+    else:
+        print("No new documents to add; skipping persist.")
 
     # Set up LLM and retriever
     if args.llm_model.startswith("openai"):
