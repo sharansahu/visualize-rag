@@ -76,7 +76,6 @@ def main(args):
     if args.embeddings_model.startswith("openai"):
         embeddings_model = OpenAIEmbeddings(model=args.embeddings_model.split(":")[1])
     elif args.embeddings_model.startswith("ollama"):
-        # Assuming a hypothetical OllamaEmbeddings class
         embeddings_model = OllamaEmbeddings(model=args.embeddings_model.split(":")[1])
 
     docs_vectorstore = Chroma(
@@ -125,7 +124,6 @@ def main(args):
     if args.llm_model.startswith("openai"):
         llm = ChatOpenAI(model=args.llm_model.split(":")[1], temperature=0.0)
     elif args.llm_model.startswith("ollama"):
-        # Assuming a hypothetical OllamaChat class
         llm = ChatOllama(model=args.llm_model.split(":")[1], temperature=0.0)
 
     retriever = docs_vectorstore.as_retriever(search_kwargs={"k": 20})
