@@ -537,9 +537,6 @@ def main(args):
                 if pd.isna(df.loc[j, 'dist']) or dist < df.loc[j, 'dist']:
                     df.loc[j, 'dist'] = dist
 
-    # For rows that are purely document chunks (not associated with a specific question yet),
-    # calculate their distance to the first question (or closest question if you wish to implement that)
-    # For simplicity, let's keep their 'dist' as NaN or calculate relative to first question if it exists.
     if questions:
         first_question_embedding = embeddings_model.embed_query(questions[0])
         for j, row in df.iterrows():
@@ -557,10 +554,6 @@ def main(args):
     for col in ['question', 'answer', 'source', 'document']:
         if col in df.columns:
             df[col] = df[col].fillna('').astype(str)
-            
-    # For numerical columns, NaN is usually fine for blank display in Spotlight
-    # But if you want actual 0s, you'd do: df['page'] = df['page'].fillna(0).astype(int)
-    # For 'dist', NaN will display as blank, which is often desired.
     
     # Reorder columns to match the desired format
     df = df[['id', 'question', 'embedding', 'answer', 'source', 'page', 'document', 'dist', 'query_id', 'type']]
