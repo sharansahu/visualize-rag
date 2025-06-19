@@ -98,7 +98,6 @@ The Spotlight visualization will contain the following key columns for analysis:
 -   `query_id`: An identifier to group questions, their answers, and their relevant source documents.
 -   `type`: Categorizes the row as 'question', 'answer', 'source_document', or 'document', aiding in organized display.
 -   `x`, `y`: 2D UMAP coordinates for visualizing embeddings in a 2D space.
--   **RAGAS Metrics:** Additional columns will be present for `faithfulness`, `answer_relevancy`, `context_precision`, and `context_recall` (if ground truths were provided), showing the scores for each question's response.
 
 You can use the sorting and filtering features in Spotlight to analyze the RAG pipeline's performance. You can use the “visible column” button to select the columns “question”, “answer”, “source”, “document”, and “dist”. Ordering the table by “dist” (click on the "dist" column name) shows the question, answer, and the most relevant document snippets on top. Select the rows to highlight them in the similarity map on the top right.
 
