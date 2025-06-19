@@ -38,23 +38,24 @@ pip install -r requirements.txt
 
 ### Command Line Arguments
 
-- `--docs_dir`: Directory of documents to load (required).
-- `--vectorstore_dir`: Directory to store the vector database (required).
-- `--embeddings_model`: Model for embeddings (e.g., `openai:text-embedding-ada-002` or `ollama:mistral`) (required).
-- `--llm_model`: LLM model for QA (e.g., `openai:gpt-4` or `ollama:mistral`) (required).
+- `--docs_dir` (required): Directory of documents to load (required).
+- `--vectorstore_dir` (required): Directory to store the vector database (required).
+- `--embeddings_model` (required): Model for embeddings (e.g., `openai:text-embedding-ada-002` or `ollama:mistral`) (required).
+- `--llm_model` (required): LLM model for QA (e.g., `openai:gpt-4` or `ollama:mistral`) (required).
+- `--h5_name` (optional): Base name for the HDF5 file (without .h5). If omitted, a timestamped name docs_store_YYYYMMDD_HHMMSS.h5 is generated.
 
 ### Running the Script
 
 To run the script, use the following command:
 
 ```sh
-python3 visualize_rag.py --docs_dir ./documents --vectorstore_dir ./vectorstore --embeddings_model openai:text-embedding-ada-002 --llm_model openai:gpt-4
+python3 visualize_rag.py --docs_dir ./documents --vectorstore_dir ./vectorstore --embeddings_model openai:text-embedding-ada-002 --llm_model openai:gpt-4 --h5_name visualization_experiment_with_doc_1
 ```
 
 For open source models, use the following command:
 
 ```sh
-python3 visualize_rag.py --docs_dir ./documents --vectorstore_dir ./vectorstore --embeddings_model ollama:nomic-embed-text --llm_model ollama:mistral
+python3 visualize_rag.py --docs_dir ./documents --vectorstore_dir ./vectorstore --embeddings_model ollama:mistral --llm_model ollama:mistral --h5_name visualization_experiment_with_doc_1
 ```
 
 ### Interactive Question-Answer Session
@@ -64,6 +65,18 @@ After running the script, you will be prompted to enter your questions. Type you
 ### Visualization
 
 Once you finish the question-answer session, the script will visualize the results using Spotlight.
+
+## Reload Visualization: launch_visualization.py
+Use this helper script to load a previously saved .h5 dataset without rebuilding embeddings or re-running QA.
+
+### Command Line Arguments
+- `--h5_path` (required): Path to the saved HDF5 dataset (e.g., vectorstore/visualization_datastore/docs_store_20250619_103045.h5).
+
+To run the script, use the following command:
+```sh
+python3 launch_visualization.py --h5_path ./vectorstore/visualization_datastore/my_docs_snapshot.h5
+```
+This will spin up Spotlight immediately on the saved dataset.
 
 ## Additional Information
 
