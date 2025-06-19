@@ -7,6 +7,7 @@ import json
 import numpy as np
 import pandas as pd
 from typing import List
+from datetime import datetime
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_chroma import Chroma
@@ -17,6 +18,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from renumics import spotlight
+from renumics.spotlight import Dataset as SpotDataset
 from ragas import evaluate
 from ragas.metrics import (
     faithfulness,
@@ -459,7 +461,33 @@ def main(args):
             axis=1,
         )
         
-    spotlight.show(df)
+    if args.h5_name:
+        file_name = args.h5_name if args.h5_name.endswith(".h5") else f"{args.h5_name}.h5"
+    else:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_name = f"docs_store_{ts}.h5"
+
+    out_dir = os.path.join(args.vectorstore_dir, "visualization_datastore")
+    os.makedirs(out_dir, exist_ok=True)
+    h5_path = os.path.join(out_dir, file_name)
+
+    print(f"Saving Spotlight dataset to {h5_path}...")
+    with SpotDataset(h5_path, "w") as ds:
+        for col in df.columns:
+            series = df[col]
+            # detect embeddings column by list-of-floats
+            if col == "embedding" or isinstance(series.iloc[0], list):
+                ds.append_embedding_column(col, series.tolist())
+            elif pd.api.types.is_integer_dtype(series):
+                ds.append_int_column(col, series.tolist())
+            elif pd.api.types.is_float_dtype(series):
+                ds.append_float_column(col, series.tolist())
+            else:
+                ds.append_string_column(col, series.astype(str).tolist())
+    print("Saved HDF5 dataset successfully.")
+
+    print("Launching Spotlight viewer...")
+    spotlight.show(h5_path)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Document QA and Visualization Script")
@@ -467,6 +495,7 @@ if __name__ == "__main__":
     parser.add_argument("--vectorstore_dir", type=str, required=True, help="Directory to store the vector database")
     parser.add_argument("--embeddings_model", type=str, required=True, help="Model for embeddings (e.g., openai:text-embedding-ada-002 or ollama:mistral)")
     parser.add_argument("--llm_model", type=str, required=True, help="LLM model for QA (e.g., openai:gpt-4 or ollama:mistral)")
+    parser.add_argument("--h5_name", type=str, default=None, help="Optional base name for the HDF5 file (without .h5 extension)")
 
     args = parser.parse_args()
     main(args)
