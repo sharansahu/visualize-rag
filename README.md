@@ -14,7 +14,7 @@ This project allows you to load documents from a specified directory, create emb
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.10 or higher
 - Pip (Python package installer)
 - Windows 10 or later / macOS 11 Big Sur or later
 
@@ -23,7 +23,7 @@ This project allows you to load documents from a specified directory, create emb
 Create a virtual environment to containerize all requirements and avoid dependency conflicts
 
 ```sh
-conda create --name visualize_rag_env python3=3.8.3
+conda create --name visualize_rag_env python=3.10
 ```
 
 ### Dependencies

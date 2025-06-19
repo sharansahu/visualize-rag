@@ -17,8 +17,8 @@ from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-from renumics import spotlight
 from renumics.spotlight import Dataset as SpotDataset
+from renumics.spotlight import show
 from ragas import evaluate
 from ragas.metrics import (
     faithfulness,
@@ -27,6 +27,7 @@ from ragas.metrics import (
     context_precision,
 )
 from datasets import Dataset
+from umap import UMAP
 import warnings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -321,15 +322,20 @@ def main(args):
     questions = []
     answers = []
     contexts = []
+    retrieved_sources = [] # Store retrieved sources for each question
     while True:
         question = input("Enter your question (or 'done' to finish): ")
         if question.lower() == 'done':
             break
+        
+        retrieved_docs = retriever.invoke(question)
         response = rag_chain.invoke(question)['answer']
+        
         print("Answer:", response)
         questions.append(question)
         answers.append(response)
-        contexts.append([docs.page_content for docs in retriever.invoke(question)])
+        contexts.append([docs.page_content for docs in retrieved_docs])
+        retrieved_sources.append([docs.metadata.get('source') for docs in retrieved_docs])
     
     if questions:
         ground_truths = create_ground_truth_answers(questions)
@@ -425,41 +431,160 @@ def main(args):
 
     embeddings_list = [list(emb) if emb is not None else [] for emb in response["embeddings"]]
 
-    df = pd.DataFrame(
-    {
-        "id": response["ids"],
-        "source": [metadata.get("source") for metadata in response["metadatas"]],
-        "page": [metadata.get("page", -1) for metadata in response["metadatas"]],
-        "document": response["documents"],
-        "embedding": embeddings_list, 
-    }
-)
+    # Create the initial DataFrame for document chunks
+    df_chunks = pd.DataFrame(
+        {
+            "id": response["ids"],
+            "source": [metadata.get("source", "") for metadata in response["metadatas"]], # Handle missing source
+            "page": [metadata.get("page", -1) for metadata in response["metadatas"]],
+            "document": [doc if doc is not None else "" for doc in response["documents"]], # Handle missing document
+            "embedding": embeddings_list,
+            "question": "",  # Initialize with empty string for display
+            "answer": "",    # Initialize with empty string for display
+            "dist": np.nan,
+            "query_id": np.nan, # New column for sorting
+            "type": "document"  # New column for sorting
+        }
+    )
 
-    for i, question in enumerate(questions):
-        question_embedding = embeddings_model.embed_query(question)
-        question_row = pd.DataFrame(
-            {
-                "id": [f"question_{i}"],
-                "question": [question],
-                "embedding": [list(question_embedding)], 
-            }
-        )
+    # Prepare lists for question and answer rows
+    df_rows = []
+
+    for i, question_text in enumerate(questions):
+        question_embedding = embeddings_model.embed_query(question_text)
         answer_embedding = embeddings_model.embed_query(answers[i])
-        answer_row = pd.DataFrame(
-            {
-                "id": [f"answer_{i}"],
-                "answer": [answers[i]],
-                "embedding": [list(answer_embedding)], 
-            }
-        )
-        df = pd.concat([question_row, answer_row, df], ignore_index=True)
 
-        df["dist"] = df.apply(
-            lambda row: np.linalg.norm(
-                np.array(row["embedding"]) - np.array(question_embedding)
-            ) if row["embedding"] else 0, 
-            axis=1,
-        )
+        # Question row
+        question_row = {
+            "id": f"question_{i}",
+            "question": question_text,
+            "embedding": list(question_embedding),
+            "answer": "",
+            "source": "",
+            "page": np.nan,
+            "document": "",
+            "dist": 0.0, # Distance of question to itself is 0
+            "query_id": i,
+            "type": "question"
+        }
+        df_rows.append(question_row)
+
+        # Answer row
+        answer_row = {
+            "id": f"answer_{i}",
+            "answer": answers[i],
+            "embedding": list(answer_embedding),
+            "question": "",
+            "source": "",
+            "page": np.nan,
+            "document": "",
+            "dist": np.nan, # Distance for answer will be calculated later
+            "query_id": i,
+            "type": "answer"
+        }
+        df_rows.append(answer_row)
+
+        # Add retrieved source documents for this question
+        for doc_idx, retrieved_doc_content in enumerate(contexts[i]):
+            # Find the original document ID for the retrieved content
+            # This assumes that the content is unique enough to find the original id
+            original_doc_id = next((df_chunks.loc[j, 'id'] for j, doc_chunk in df_chunks.iterrows() if doc_chunk['document'] == retrieved_doc_content), None)
+            
+            # If original_doc_id is found, retrieve other metadata. Otherwise, use what's available.
+            retrieved_doc_source = retrieved_sources[i][doc_idx] if doc_idx < len(retrieved_sources[i]) else ""
+            
+            source_doc_row = {
+                "id": original_doc_id if original_doc_id else f"retrieved_doc_{i}_{doc_idx}",
+                "question": "",
+                "answer": "",
+                "source": retrieved_doc_source,
+                "page": np.nan, # Can try to get page from original metadata if original_doc_id is found
+                "document": retrieved_doc_content,
+                "embedding": list(embeddings_model.embed_query(retrieved_doc_content)), # Re-embed if not found in df_chunks, or get from df_chunks
+                "dist": np.nan, # Calculated later
+                "query_id": i,
+                "type": "source_document"
+            }
+            df_rows.append(source_doc_row)
+
+
+    # Convert the list of question/answer/source dicts to a DataFrame
+    if df_rows:
+        df_qa_source = pd.DataFrame(df_rows)
+        # Concatenate the QA and source documents DataFrame with the remaining chunks
+        # Only include chunks not already present as "source_document"
+        df_chunks_remaining = df_chunks[~df_chunks['id'].isin(df_qa_source['id'])].copy()
+        
+        # Ensure 'query_id' and 'type' are present in df_chunks_remaining
+        df_chunks_remaining['query_id'] = np.nan
+        df_chunks_remaining['type'] = 'document'
+
+        df = pd.concat([df_qa_source, df_chunks_remaining], ignore_index=True)
+    else:
+        df = df_chunks # If no questions, just use the chunks dataframe
+
+    # Calculate distances for all rows against each question
+    for i, question_text in enumerate(questions):
+        question_embedding = embeddings_model.embed_query(question_text)
+        
+        # Calculate distances for rows associated with this question
+        # This will set the 'dist' for the answer and source documents related to this question
+        for j, row in df.iterrows():
+            if not pd.isna(row['query_id']) and row['query_id'] == i and \
+               row['embedding'] is not None and len(row['embedding']) > 0:
+                dist = np.linalg.norm(np.array(row["embedding"]) - np.array(question_embedding))
+                # Only update if current dist is NaN or new dist is smaller (for multiple questions affecting dist)
+                if pd.isna(df.loc[j, 'dist']) or dist < df.loc[j, 'dist']:
+                    df.loc[j, 'dist'] = dist
+
+    # For rows that are purely document chunks (not associated with a specific question yet),
+    # calculate their distance to the first question (or closest question if you wish to implement that)
+    # For simplicity, let's keep their 'dist' as NaN or calculate relative to first question if it exists.
+    if questions:
+        first_question_embedding = embeddings_model.embed_query(questions[0])
+        for j, row in df.iterrows():
+            if row['type'] == 'document' and pd.isna(row['dist']): # Only for chunks not related to a QA pair
+                if row['embedding'] is not None and len(row['embedding']) > 0:
+                    df.loc[j, 'dist'] = np.linalg.norm(np.array(row["embedding"]) - np.array(first_question_embedding))
+    
+    # Sort the DataFrame
+    # Sort by query_id (questions first), then by type (question, answer, source_document, document), then by distance
+    df['type_order'] = df['type'].map({'question': 0, 'answer': 1, 'source_document': 2, 'document': 3})
+    df = df.sort_values(by=['query_id', 'type_order', 'dist']).reset_index(drop=True)
+    df = df.drop(columns=['type_order']) # Remove the temporary sorting column
+
+    # Fill NaN values in string columns with empty strings for better display
+    for col in ['question', 'answer', 'source', 'document']:
+        if col in df.columns:
+            df[col] = df[col].fillna('').astype(str)
+            
+    # For numerical columns, NaN is usually fine for blank display in Spotlight
+    # But if you want actual 0s, you'd do: df['page'] = df['page'].fillna(0).astype(int)
+    # For 'dist', NaN will display as blank, which is often desired.
+    
+    # Reorder columns to match the desired format
+    df = df[['id', 'question', 'embedding', 'answer', 'source', 'page', 'document', 'dist', 'query_id', 'type']]
+
+    n_neighbors = min(20, len(df) - 1)
+    # Handle the case where there's only one data point for UMAP
+    if len(df) <= 1:
+        df["x"] = 0.0
+        df["y"] = 0.0
+    else:
+        umap = UMAP(n_neighbors=n_neighbors, min_dist=0.15, metric="cosine", random_state=42)
+        # Ensure embeddings are not empty lists or None before UMAP
+        valid_embeddings_df = df[df['embedding'].apply(lambda x: isinstance(x, list) and len(x) > 0)]
+        if len(valid_embeddings_df) > 1:
+            coords = umap.fit_transform(valid_embeddings_df["embedding"].tolist())
+            df.loc[valid_embeddings_df.index, "x"] = coords[:, 0]
+            df.loc[valid_embeddings_df.index, "y"] = coords[:, 1]
+            df["x"] = df["x"].fillna(0.0) # Fill NaNs for rows without embeddings
+            df["y"] = df["y"].fillna(0.0) # Fill NaNs for rows without embeddings
+        else:
+            df["x"] = 0.0
+            df["y"] = 0.0
+    
+    print(df)
         
     if args.h5_name:
         file_name = args.h5_name if args.h5_name.endswith(".h5") else f"{args.h5_name}.h5"
@@ -474,20 +599,25 @@ def main(args):
     print(f"Saving Spotlight dataset to {h5_path}...")
     with SpotDataset(h5_path, "w") as ds:
         for col in df.columns:
+            if col in ("x", "y"):
+                continue
             series = df[col]
             # detect embeddings column by list-of-floats
-            if col == "embedding" or isinstance(series.iloc[0], list):
+            if col == "embedding" or (not series.empty and isinstance(series.iloc[0], list)):
                 ds.append_embedding_column(col, series.tolist())
             elif pd.api.types.is_integer_dtype(series):
                 ds.append_int_column(col, series.tolist())
             elif pd.api.types.is_float_dtype(series):
                 ds.append_float_column(col, series.tolist())
             else:
-                ds.append_string_column(col, series.astype(str).tolist())
+                ds.append_string_column(col, series.astype(str).tolist()) # Convert to string to avoid "nan"
+        ds.append_float_column("x", df["x"].tolist())
+        ds.append_float_column("y", df["y"].tolist())
+
     print("Saved HDF5 dataset successfully.")
 
-    print("Launching Spotlight viewer...")
-    spotlight.show(h5_path)
+    print("Launching Spotlight viewer (precomputed 2D)…")
+    show(h5_path)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Document QA and Visualization Script")
