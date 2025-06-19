@@ -85,6 +85,8 @@ The RAGAS evaluation results for each metric are added as new columns to the gen
 
 Once you finish the question-answer session and RAGAS evaluation is complete, the script will launch the Spotlight viewer.
 
+![UMAP dimensionality reduction of the embeddings of document snippets, colored by to their relevance. Credits to https://itnext.io/visualize-your-rag-data-eda-for-retrieval-augmented-generation-0701ee98768f for the image](imgs/umap_viz.png)
+
 The Spotlight visualization will contain the following key columns for analysis:
 
 -   `id`: Unique identifier for each entry (question, answer, or document chunk).
@@ -99,7 +101,13 @@ The Spotlight visualization will contain the following key columns for analysis:
 -   `type`: Categorizes the row as 'question', 'answer', 'source_document', or 'document', aiding in organized display.
 -   `x`, `y`: 2D UMAP coordinates for visualizing embeddings in a 2D space.
 
-You can use the sorting and filtering features in Spotlight to analyze the RAG pipeline's performance. You can use the “visible column” button to select the columns “question”, “answer”, “source”, “document”, and “dist”. Ordering the table by “dist” (click on the "dist" column name) shows the question, answer, and the most relevant document snippets on top. Select the rows to highlight them in the similarity map on the top right.
+You can use the sorting and filtering features in Spotlight to analyze the RAG pipeline's performance. You can use the “visible column” button to select the columns “question”, “answer”, “source”, “document”, and “dist”. 
+
+![This is where you can find the visible column button](imgs/visable_button.png)
+
+Ordering the table by “dist” (click on the "dist" column name) shows the question, answer, and the most relevant document snippets on top. Select the rows to highlight them in the similarity map on the top right.
+
+![Click this to order by distance in ascending order](imgs/dist_order.png)
 
 ## Reload Visualization: launch_visualization.py
 Use this helper script to load a previously saved .h5 dataset without rebuilding embeddings or re-running QA.
