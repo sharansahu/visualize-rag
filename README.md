@@ -103,7 +103,7 @@ The Spotlight visualization will contain the following key columns for analysis:
 
 You can use the sorting and filtering features in Spotlight to analyze the RAG pipeline's performance. You can use the “visible column” button to select the columns “question”, “answer”, “source”, “document”, and “dist”. 
 
-![This is where you can find the visible column button](imgs/visable_button.png)
+![This is where you can find the visible column button](imgs/visible_button.png)
 
 Ordering the table by “dist” (click on the "dist" column name) shows the question, answer, and the most relevant document snippets on top. Select the rows to highlight them in the similarity map on the top right.
 
