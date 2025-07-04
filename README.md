@@ -40,8 +40,8 @@ pip install -r requirements.txt
 
 - `--docs_dir` (required): Directory of documents to load (required).
 - `--vectorstore_dir` (required): Directory to store the vector database (required).
-- `--embeddings_model` (required): Model for embeddings (e.g., `openai:text-embedding-ada-002` or `ollama:mistral`) (required).
-- `--llm_model` (required): LLM model for QA (e.g., `openai:gpt-4` or `ollama:mistral`) (required).
+- `--embeddings_model` (required): Model for embeddings (e.g., `openai:text-embedding-3-small` or `ollama:mistral`) (required).
+- `--llm_model` (required): LLM model for QA (e.g., `openai:gpt-4.1` or `ollama:mistral`) (required).
 - `--h5_name` (optional): Base name for the HDF5 file (without .h5). If omitted, a timestamped name docs_store_YYYYMMDD_HHMMSS.h5 is generated.
 
 ### Running the Script
@@ -49,7 +49,7 @@ pip install -r requirements.txt
 To run the script, use the following command:
 
 ```sh
-python3 visualize_rag.py --docs_dir ./documents --vectorstore_dir ./vectorstore --embeddings_model openai:text-embedding-ada-002 --llm_model openai:gpt-4 --h5_name visualization_experiment_with_doc_1
+python3 visualize_rag.py --docs_dir ./documents --vectorstore_dir ./vectorstore --embeddings_model openai:text-embedding-3-small --llm_model openai:gpt-4.1 --h5_name visualization_experiment_with_doc_1
 ```
 
 For open source models, use the following command:
@@ -108,6 +108,8 @@ You can use the sorting and filtering features in Spotlight to analyze the RAG p
 Ordering the table by “dist” (click on the "dist" column name) shows the question, answer, and the most relevant document snippets on top. Select the rows to highlight them in the similarity map on the top right.
 
 ![Click this to order by distance in ascending order](imgs/dist_order.png)
+
+You can observe that the most relevant documents are in close proximity to the question and the answer. This includes the single document snippet that contains the correct answer.
 
 ## Reload Visualization: launch_visualization.py
 Use this helper script to load a previously saved .h5 dataset without rebuilding embeddings or re-running QA.
