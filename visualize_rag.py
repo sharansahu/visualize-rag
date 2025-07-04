@@ -19,7 +19,7 @@ from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from renumics.spotlight import Dataset as SpotDataset
 from renumics.spotlight import show
-from ragas import evaluate
+from ragas import evaluate, RunConfig
 from ragas.metrics import (
     faithfulness,
     answer_relevancy,
@@ -287,7 +287,7 @@ def main(args):
     elif args.llm_model.startswith("ollama"):
         llm = ChatOllama(model=args.llm_model.split(":")[1], temperature=0.0)
 
-    retriever = docs_vectorstore.as_retriever(search_kwargs={"k": 20})
+    retriever = docs_vectorstore.as_retriever(search_kwargs={"k": 10})
 
     # Set up prompt template
     template = """
@@ -358,13 +358,13 @@ def main(args):
             ragas_llm = ChatOllama(
                 model=args.llm_model.split(":")[1], 
                 temperature=0.0,
-                request_timeout=360,  # 6 minutes per request
+                request_timeout=600,  # 10 minutes per request
             )
         else:
             ragas_llm = ChatOpenAI(
                 model=args.llm_model.split(":")[1], 
                 temperature=0.0,
-                request_timeout=360,
+                request_timeout=600,
             )
         
         if args.embeddings_model.startswith("ollama"):
@@ -375,6 +375,14 @@ def main(args):
             ragas_embeddings = OpenAIEmbeddings(
                 model=args.embeddings_model.split(":")[1]
             )
+        
+        run_cfg = RunConfig(
+            timeout     = 600,   # up to 10 min per sample
+            max_retries = 5,     # retry up to 5× on exception
+            max_wait    = 30,    # max backoff wait = 30 s
+            max_workers = 1,     # serialise to avoid rate‐limits
+            log_tenacity=True,   # turn on retry logging
+    )
         
         individual_results = {}
         metrics_to_try = [
@@ -397,7 +405,8 @@ def main(args):
                     dataset=dataset,
                     metrics=[metric],
                     llm=ragas_llm,
-                    embeddings=ragas_embeddings
+                    embeddings=ragas_embeddings,
+                    run_config=run_cfg
                 )
                 individual_results[metric_name] = result.to_pandas()[metric_name].tolist()
                 print(f"✓ {metric_name} completed successfully")
@@ -554,9 +563,11 @@ def main(args):
     for col in ['question', 'answer', 'source', 'document']:
         if col in df.columns:
             df[col] = df[col].fillna('').astype(str)
-    
-    # Reorder columns to match the desired format
-    df = df[['id', 'question', 'embedding', 'answer', 'source', 'page', 'document', 'dist', 'query_id', 'type']]
+
+    # Force column order: question, answer, source, document, then the rest (including x/y later)
+    first_cols = ["question", "answer", "source", "document"]
+    other_cols = [c for c in df.columns if c not in first_cols]
+    df = df[first_cols + other_cols]
 
     n_neighbors = min(20, len(df) - 1)
     # Handle the case where there's only one data point for UMAP
@@ -576,8 +587,6 @@ def main(args):
         else:
             df["x"] = 0.0
             df["y"] = 0.0
-    
-    print(df)
         
     if args.h5_name:
         file_name = args.h5_name if args.h5_name.endswith(".h5") else f"{args.h5_name}.h5"
@@ -591,21 +600,28 @@ def main(args):
 
     print(f"Saving Spotlight dataset to {h5_path}...")
     with SpotDataset(h5_path, "w") as ds:
+        ds.append_string_column("question", df["question"].tolist(), order=0)
+        ds.append_string_column("answer",   df["answer"].tolist(),   order=1)
+        ds.append_string_column("source",   df["source"].tolist(),   order=2)
+        ds.append_string_column("document", df["document"].tolist(), order=3)
+
+        idx = 4
         for col in df.columns:
-            if col in ("x", "y"):
+            if col in ("question","answer","source","document","x","y"):
                 continue
             series = df[col]
-            # detect embeddings column by list-of-floats
-            if col == "embedding" or (not series.empty and isinstance(series.iloc[0], list)):
-                ds.append_embedding_column(col, series.tolist())
+            if col == "embedding" or (isinstance(series.iloc[0], list)):
+                ds.append_embedding_column(col, series.tolist(), order=idx)
             elif pd.api.types.is_integer_dtype(series):
-                ds.append_int_column(col, series.tolist())
+                ds.append_int_column(col, series.tolist(), order=idx)
             elif pd.api.types.is_float_dtype(series):
-                ds.append_float_column(col, series.tolist())
+                ds.append_float_column(col, series.tolist(), order=idx)
             else:
-                ds.append_string_column(col, series.astype(str).tolist()) # Convert to string to avoid "nan"
-        ds.append_float_column("x", df["x"].tolist())
-        ds.append_float_column("y", df["y"].tolist())
+                ds.append_string_column(col, series.astype(str).tolist(), order=idx)
+            idx += 1
+
+        ds.append_float_column("x", df["x"].tolist(), order=idx)
+        ds.append_float_column("y", df["y"].tolist(), order=idx+1)
 
     print("Saved HDF5 dataset successfully.")
 
@@ -616,8 +632,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Document QA and Visualization Script")
     parser.add_argument("--docs_dir", type=str, required=True, help="Directory of documents to load")
     parser.add_argument("--vectorstore_dir", type=str, required=True, help="Directory to store the vector database")
-    parser.add_argument("--embeddings_model", type=str, required=True, help="Model for embeddings (e.g., openai:text-embedding-ada-002 or ollama:mistral)")
-    parser.add_argument("--llm_model", type=str, required=True, help="LLM model for QA (e.g., openai:gpt-4 or ollama:mistral)")
+    parser.add_argument("--embeddings_model", type=str, required=True, help="Model for embeddings (e.g., openai:text-embedding-3-small or ollama:mistral)")
+    parser.add_argument("--llm_model", type=str, required=True, help="LLM model for QA (e.g., openai:gpt-4.1 or ollama:mistral)")
     parser.add_argument("--h5_name", type=str, default=None, help="Optional base name for the HDF5 file (without .h5 extension)")
 
     args = parser.parse_args()
