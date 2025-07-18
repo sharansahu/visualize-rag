@@ -141,4 +141,4 @@ If you choose to use Ollama models and Ollama is not installed on your system, t
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
